@@ -44,6 +44,7 @@ def initialize(db, projects=None):
     from freeze.catalog import init_seal_schema
     from intake.store import init_intake_schema
     from retention.receipts import init_receipt_schema
+    from review.rank_store import init_rank_review_schema
     from review.store import init_review_schema
     from scales.projects import INITIAL_AXES
     from scales.store import init_scale_schema, register_initial_axes
@@ -53,6 +54,7 @@ def initialize(db, projects=None):
         init_intake_schema(db)
         init_seal_schema(db)
         init_review_schema(db)
+        init_rank_review_schema(db)
         init_receipt_schema(db)
         definitions = INITIAL_AXES if projects is None else projects
         for project, benches in definitions:

@@ -12,7 +12,7 @@ from intake.batches import submit_batch
 from intake.store import load_batch_header, load_batch_rows
 from retention.policy import RetentionPolicy
 from retention.purge import expire_batch
-from review.reports import get_review, issue_review
+from review.reports import get_rank_review, get_review, issue_rank_review, issue_review
 from scales.revisions import set_scale
 
 
@@ -50,6 +50,10 @@ def run_demo():
             if _summary(report) != expected:
                 raise AssertionError(f'POOL_SCALE_MISMATCH: {_summary(report)}')
             receipts = [expire_batch(db, batch_id, policy, cutoff) for batch_id in batches]
+            # 原始行清理后，仅凭封存联合证据签发秩一致性报告。
+            rank_report = issue_rank_review(db, selected, sample['threshold'])
+            if _summary(rank_report) != expected:
+                raise AssertionError(f'RANK_SCALE_MISMATCH: {_summary(rank_report)}')
             corrected_id = _sample_batch(db, project, sample['replacement'], cutoff, batches[1])
         with closing(open_database(path)) as db:
             old = get_review(db, report.report_id)
@@ -57,7 +61,18 @@ def run_demo():
             corrected = load_batch_header(db, corrected_id)
             if old != report or _summary(replayed) != expected or replayed.seal_ids != selected:
                 raise AssertionError(f'POOL_SCALE_MISMATCH: old={old!r}, new={replayed!r}')
-            if corrected.predecessor_id != batches[1] or corrected.scale_id == seals[1].scale_id:
+            # 关闭重开后按原秩报告号领取清理后签发的结果。
+            reopened_rank = get_rank_review(db, rank_report.report_id)
+            if reopened_rank != rank_report:
+                raise AssertionError(f'RANK_REOPEN_MISMATCH: {reopened_rank!r}')
+            # 追加式更正产生新批与新封存，旧绑定与旧秩报告保持不变。
+            corrected_seal = seal_batch(db, corrected_id)
+            corrected_rank = issue_rank_review(db, [corrected_seal.seal_id], 0)
+            if get_rank_review(db, rank_report.report_id) != rank_report:
+                raise AssertionError('correction disturbed the original rank report')
+            if corrected.predecessor_id != batches[1]:
+                raise AssertionError('replacement did not retain the predecessor')
+            if corrected.scale_id == seals[1].scale_id:
                 raise AssertionError('replacement did not retain the predecessor and new scale')
             for seal, receipt in zip(seals, receipts):
                 if load_batch_rows(db, seal.batch_id) is not None or get_seal(db, seal.seal_id) != seal:
@@ -75,6 +90,12 @@ def run_demo():
                 'oracle': 'Project pairs (0,0),(1,1),(2,0) have zero centered cross-product; 0 is below 1/2.',
             }
             print('POINTWISE_SCENARIO ' + json.dumps(observed, ensure_ascii=False, sort_keys=True))
+            print(f'清理后秩签发: 报告号 {rank_report.report_id} '
+                  f'n={rank_report.n} q={rank_report.q} passed={rank_report.passed}')
+            print(f'重开领取: {_summary(reopened_rank)}；'
+                  f'更正批新封存 {corrected_seal.seal_id} 秩报告 '
+                  f'n={corrected_rank.n} q={corrected_rank.q} passed={corrected_rank.passed}；'
+                  f'原秩报告 {rank_report.report_id} 仍可按号领取。')
 
 
 def main(argv=None):
