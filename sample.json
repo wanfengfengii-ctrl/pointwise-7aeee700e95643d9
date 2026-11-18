@@ -1,0 +1,12 @@
+{
+  "project": "repeatability",
+  "accepted_at": "2026-05-11T08:00:00+00:00",
+  "cutoff": "2026-05-12T08:00:00+00:00",
+  "retention_days": 1,
+  "threshold": "1/2",
+  "batches": [
+    {"bench": "a", "submission_key": "day-a", "x_shift": "0", "rows": [["a1", 0, 0], ["a2", 1, 1]]},
+    {"bench": "b", "submission_key": "day-b", "x_shift": "2", "rows": [["b1", 0, 0]]}
+  ],
+  "replacement": {"bench": "b", "submission_key": "day-b-corrected", "x_shift": "3", "rows": [["b1", 0, 0]]}
+}
